@@ -52,6 +52,6 @@ HorizDroid is based on [Vasysik's Horizon Android](https://github.com/Vasysik/ho
 
 ---
 
-**HorizDroid — Android freedom, native modding.**
+**HorizDroid — UnRust Your Phone. Rust Your Game.**
 
 Developed by **ZYVIX**.
