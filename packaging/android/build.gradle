@@ -13,10 +13,12 @@ android {
     }
     signingConfigs {
         development {
-            storeFile file('../../.local/android/debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            // The keystore is decoded from GitHub Actions Secrets into the
+            // temporary runner workspace; the persistent private key stays in Secrets.
+            storeFile file(System.getenv('ANDROID_SIGNING_KEYSTORE') ?: '../../.local/android/debug.keystore')
+            storePassword System.getenv('ANDROID_RELEASE_STORE_PASSWORD') ?: 'android'
+            keyAlias System.getenv('ANDROID_RELEASE_KEY_ALIAS') ?: 'androiddebugkey'
+            keyPassword System.getenv('ANDROID_RELEASE_KEY_PASSWORD') ?: 'android'
         }
     }
     buildTypes {
