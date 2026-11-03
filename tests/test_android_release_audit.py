@@ -1,9 +1,11 @@
 import importlib.util
 import io
 from pathlib import Path
+import struct
 import tempfile
 import unittest
 import zipfile
+import zlib
 import sys
 from unittest.mock import patch
 
@@ -20,6 +22,25 @@ def archive(files):
     return output.getvalue()
 
 
+def png(width, height, color, rows, depth=8, palette=b'', transparency=b''):
+    def chunk(kind, body):
+        return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
+    raw = b''.join(b'\x00' + bytes(row) for row in rows)
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, depth, color, 0, 0, 0))
+            + (chunk(b'PLTE', palette) if palette else b'') + (chunk(b'tRNS', transparency) if transparency else b'')
+            + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
+
+
+# The same 2x2 picture as straight RGBA and as a 2-bit palette image with a different
+# colour under the transparent pixel, which an encoder is free to rewrite.
+PICTURE_RGBA = png(2, 2, 6, [[255, 0, 0, 255, 0, 255, 0, 255], [0, 0, 255, 128, 9, 9, 9, 0]])
+PICTURE_PALETTE = png(2, 2, 3, [[0x10], [0xB0]], depth=2, palette=bytes([255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0]),
+                      transparency=bytes([255, 255, 128, 0]))
+OTHER_PICTURE = png(2, 2, 6, [[255, 0, 0, 255, 0, 255, 0, 255], [0, 0, 254, 128, 9, 9, 9, 0]])
+BADGING = ("package: name='{app_id}'\napplication-label:'HorizDroid'\n"
+           "application-icon-160:'res/drawable-nodpi-v4/launcher_icon.png'\n")
+
+
 class ReleaseAuditTests(unittest.TestCase):
     def test_dev_package_does_not_relax_stable_identity_or_debuggable_check(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -27,14 +48,50 @@ class ReleaseAuditTests(unittest.TestCase):
             apk.write_bytes(b'test')
             payload = {'findings': []}
             with patch.object(audit, 'inspect_payload', return_value=payload), patch.object(
-                    audit.subprocess, 'check_output', return_value="package: name='dev.horizon.android.dev'\n"):
+                    audit, 'check_icon', return_value=True), patch.object(
+                    audit.subprocess, 'check_output', return_value=BADGING.format(app_id='dev.horizdroid.android')):
                 with self.assertRaises(ValueError):
                     audit.audit(apk, 'aapt2')
-                report = audit.audit(apk, 'aapt2', app_id='dev.horizon.android.dev')
+                report = audit.audit(apk, 'aapt2', app_id='dev.horizdroid.android')
                 self.assertTrue(report['passed'])
+                self.assertEqual((report['package'], report['label'], report['icon_matches_source']),
+                                 ('dev.horizdroid.android', 'HorizDroid', True))
             with patch.object(audit, 'inspect_payload', return_value={'findings': []}), patch.object(
-                    audit.subprocess, 'check_output', return_value="package: name='dev.horizon.android.dev'\napplication-debuggable\n"):
-                self.assertFalse(audit.audit(apk, 'aapt2', app_id='dev.horizon.android.dev')['passed'])
+                    audit, 'check_icon', return_value=True), patch.object(
+                    audit.subprocess, 'check_output', return_value=BADGING.format(app_id='dev.horizdroid.android') + 'application-debuggable\n'):
+                self.assertFalse(audit.audit(apk, 'aapt2', app_id='dev.horizdroid.android')['passed'])
+
+    def test_wrong_application_label_or_icon_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            apk = Path(temporary) / 'test.apk'
+            apk.write_bytes(b'test')
+            badging = BADGING.format(app_id='dev.horizdroid.android')
+            with patch.object(audit, 'inspect_payload', return_value={'findings': []}), patch.object(
+                    audit.subprocess, 'check_output', return_value=badging.replace("'HorizDroid'", "'Horizon Android'")), patch.object(
+                    audit, 'check_icon', return_value=True):
+                with self.assertRaises(ValueError):
+                    audit.audit(apk, 'aapt2', app_id='dev.horizdroid.android')
+            with patch.object(audit, 'inspect_payload', return_value={'findings': []}), patch.object(
+                    audit.subprocess, 'check_output', return_value=badging), patch.object(
+                    audit, 'check_icon', return_value=False):
+                with self.assertRaises(ValueError):
+                    audit.audit(apk, 'aapt2', app_id='dev.horizdroid.android')
+
+    def test_launcher_icon_must_match_source_pixels_not_encoding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            folder = Path(temporary)
+            source = folder / 'launcher_icon.png'
+            source.write_bytes(PICTURE_RGBA)
+            badging = BADGING.format(app_id='dev.horizdroid.android')
+            apk = folder / 'a.apk'
+            for packaged, expected in [(PICTURE_PALETTE, True), (PICTURE_RGBA, True), (OTHER_PICTURE, False)]:
+                apk.write_bytes(archive({'res/drawable-nodpi-v4/launcher_icon.png': packaged}))
+                self.assertEqual(audit.check_icon(apk, badging, source), expected)
+            apk.write_bytes(archive({'res/drawable-nodpi-v4/launcher_icon.png': PICTURE_RGBA}))
+            with self.assertRaises(ValueError):
+                audit.check_icon(apk, "package: name='x'\n", source)
+            with self.assertRaises(ValueError):
+                audit.check_icon(apk, badging.replace('.png', '.xml'), source)
 
     def test_public_apk_accepts_generated_tables_and_rejects_original_assets(self):
         build_spec = importlib.util.spec_from_file_location('android_build', Path(__file__).resolve().parents[1] / 'tools/android_build.py')

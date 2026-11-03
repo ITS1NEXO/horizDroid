@@ -10,10 +10,16 @@ import io
 import json
 from pathlib import Path, PurePosixPath
 import re
+import struct
 import subprocess
 import zipfile
+import zlib
 
-ASSETS = {'assets/engine-data.zip', 'assets/bedrock-controls.zip'}
+ROOT = Path(__file__).resolve().parents[1]
+APP_LABEL = 'HorizDroid'
+APP_IDS = ['dev.horizon.android', 'dev.horizdroid.android']
+ICON_SOURCE = ROOT / 'packaging/android/res/drawable-nodpi/launcher_icon.png'
+ASSETS ={'assets/engine-data.zip', 'assets/bedrock-controls.zip'}
 # AndroidX build-time optimization profiles, not player/account profiles.
 BUILD_ASSETS = {'assets/dexopt/baseline.prof', 'assets/dexopt/baseline.profm'}
 LICENSE_ASSETS = {'assets/LICENSE.txt', 'assets/THIRD_PARTY_NOTICES.md'}
@@ -83,11 +89,104 @@ def inspect_payload(path, public=False):
     return {**totals, 'findings': findings}
 
 
-def audit(path, aapt2, public=False, app_id='dev.horizon.android'):
+def decode_png(data):
+    """Decode a PNG to (width, height, RGBA bytes) so a build tool's lossless re-encoding still compares equal."""
+    if data[:8] != b'\x89PNG\r\n\x1a\n':
+        raise ValueError('Launcher icon is not a PNG')
+    position, header, palette, transparency, compressed = 8, None, b'', b'', []
+    while position + 8 <= len(data):
+        length, kind = struct.unpack('>I4s', data[position:position + 8])
+        body = data[position + 8:position + 8 + length]
+        position += 12 + length
+        if kind == b'IHDR':
+            header = struct.unpack('>IIBBBBB', body)
+        elif kind == b'PLTE':
+            palette = body
+        elif kind == b'tRNS':
+            transparency = body
+        elif kind == b'IDAT':
+            compressed.append(body)
+        elif kind == b'IEND':
+            break
+    if header is None:
+        raise ValueError('Launcher icon PNG has no header')
+    width, height, depth, color, _, _, interlace = header
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color)
+    if interlace or channels is None or depth not in (1, 2, 4, 8) or (depth < 8 and color not in (0, 3)) or (
+            transparency and color in (0, 2)):
+        raise ValueError('Unsupported launcher icon PNG encoding')
+    stride = (width * depth * channels + 7) // 8
+    step = max(1, depth * channels // 8)
+    raw = zlib.decompress(b''.join(compressed))
+    if len(raw) != height * (stride + 1):
+        raise ValueError('Launcher icon PNG data is corrupt')
+    pixels, previous = bytearray(), bytearray(stride)
+    for y in range(height):
+        base = y * (stride + 1)
+        mode, line = raw[base], bytearray(raw[base + 1:base + 1 + stride])
+        if mode > 4:
+            raise ValueError('Launcher icon PNG data is corrupt')
+        for i in range(stride):
+            left = line[i - step] if i >= step else 0
+            up = previous[i]
+            corner = previous[i - step] if i >= step else 0
+            if mode == 1:
+                line[i] = (line[i] + left) & 255
+            elif mode == 2:
+                line[i] = (line[i] + up) & 255
+            elif mode == 3:
+                line[i] = (line[i] + (left + up) // 2) & 255
+            elif mode == 4:
+                estimate = left + up - corner
+                by_left, by_up, by_corner = abs(estimate - left), abs(estimate - up), abs(estimate - corner)
+                near = left if by_left <= by_up and by_left <= by_corner else up if by_up <= by_corner else corner
+                line[i] = (line[i] + near) & 255
+        previous = line
+        if depth == 8:
+            values = line
+        else:
+            values = [(byte >> (8 - depth * (n + 1))) & ((1 << depth) - 1) for byte in line for n in range(8 // depth)]
+        for x in range(width):
+            if color == 6:
+                pixel = tuple(values[x * 4:x * 4 + 4])
+            elif color == 2:
+                pixel = (*values[x * 3:x * 3 + 3], 255)
+            elif color == 4:
+                pixel = (values[x * 2],) * 3 + (values[x * 2 + 1],)
+            elif color == 0:
+                gray = values[x] * 255 // ((1 << depth) - 1)
+                pixel = (gray, gray, gray, 255)
+            else:
+                index = values[x]
+                pixel = (*palette[index * 3:index * 3 + 3], transparency[index] if index < len(transparency) else 255)
+            # Fully transparent pixels carry no colour; encoders may rewrite it.
+            pixels += bytes(pixel) if pixel[3] else b'\x00\x00\x00\x00'
+    return width, height, bytes(pixels)
+
+
+def check_icon(path, badging, source=ICON_SOURCE):
+    """The launcher icon the APK declares must be the repository's icon, pixel for pixel."""
+    icons = re.findall(r"^application-icon-(\d+):'([^']+)'$", badging, re.MULTILINE)
+    if not icons:
+        raise ValueError('APK declares no launcher icon')
+    resource = max(icons, key=lambda item: int(item[0]))[1]
+    if not resource.endswith('.png'):
+        raise ValueError('Launcher icon is not a PNG resource')
+    with zipfile.ZipFile(path) as archive:
+        packaged = archive.read(resource)
+    return decode_png(packaged) == decode_png(Path(source).read_bytes())
+
+
+def audit(path, aapt2, public=False, app_id='dev.horizon.android', app_label=APP_LABEL, icon_source=ICON_SOURCE):
     report = inspect_payload(path, public)
     badging = subprocess.check_output([str(aapt2), 'dump', 'badging', str(path)], text=True)
     if f"package: name='{app_id}'" not in badging:
         raise ValueError('Unexpected Android package identity')
+    if not re.search(rf"^application-label:'{re.escape(app_label)}'$", badging, re.MULTILINE):
+        raise ValueError('Unexpected Android application label')
+    if not check_icon(path, badging, icon_source):
+        raise ValueError('Launcher icon does not match packaging/android/res/drawable-nodpi/launcher_icon.png')
+    report['package'], report['label'], report['icon_matches_source'] = app_id, app_label, True
     report['debuggable'] = 'application-debuggable' in badging
     if report['debuggable']:
         report['findings'].append({'path': 'AndroidManifest.xml', 'kind': 'debuggable'})
@@ -107,7 +206,7 @@ def main():
     parser.add_argument('--aapt2', required=True, type=Path)
     parser.add_argument('--report', type=Path)
     parser.add_argument('--public', action='store_true')
-    parser.add_argument('--app-id', choices=['dev.horizon.android', 'dev.horizon.android.dev'], default='dev.horizon.android')
+    parser.add_argument('--app-id', choices=APP_IDS, default='dev.horizon.android')
     args = parser.parse_args()
     report = audit(args.apk, args.aapt2, args.public, args.app_id)
     if args.report:
