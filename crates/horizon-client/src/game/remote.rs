@@ -4882,9 +4882,9 @@ impl Game<'_> {
         {
             const OFFLINE: &str = "horizon/offline_skin";
             if !self.skin_slots.contains(OFFLINE) || !self.gui.atlas.sprites.contains_key(OFFLINE) {
-                self.store_skin(OFFLINE.into(), rgba.clone());
+                self.store_skin(OFFLINE.into(), rgba.to_vec());
             }
-            if *is_slim {
+            if is_slim {
                 slim.insert(local);
             }
             resolved.push((local, OFFLINE.into()));

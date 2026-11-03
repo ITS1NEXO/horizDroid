@@ -626,43 +626,135 @@ pub fn process_cape(width: u32, height: u32, rgba: &[u8]) -> Option<Vec<u8>> {
     Some(img)
 }
 
-/// The cape the launcher gives an offline name (`HORIZON_OFFLINE_CAPE`, a
-/// PNG's path; launcher/src/skins.rs), read once as `process_cape` lays it out.
-pub fn offline_cape() -> Option<&'static [u8]> {
-    static CAPE: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
-    CAPE.get_or_init(|| {
-        let path = std::env::var_os("HORIZON_OFFLINE_CAPE").filter(|p| !p.is_empty())?;
-        let image = std::fs::read(&path)
-            .map_err(|e| e.to_string())
-            .and_then(|bytes| crate::hud::decode_bytes(&bytes).map_err(|e| e.to_string()))
-            .and_then(|(w, h, rgba)| process_cape(w, h, &rgba).ok_or("not an image".into()));
-        image
-            .inspect_err(|e| eprintln!("Horizon: no offline cape ({}): {e}", path.display()))
-            .ok()
-    })
-    .as_deref()
+/// The skin and cape an offline player wears: PNG files the launcher keeps.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OfflineLook {
+    /// A 64x64 or older 64x32 skin.
+    pub skin: Option<std::path::PathBuf>,
+    /// Whether the skin is drawn on the slim (three-pixel arm) model.
+    pub slim: bool,
+    /// A 64x32 or older 22x17 cape.
+    pub cape: Option<std::path::PathBuf>,
 }
 
-/// The skin the launcher gives an offline name (`HORIZON_OFFLINE_SKIN`, a
-/// PNG's path, and `HORIZON_OFFLINE_SKIN_MODEL`, `classic` or `slim`;
-/// launcher/src/skins.rs): its 64x64 RGBA as `process_legacy_skin` lays it
-/// out, and whether it is slim. Read once.
-pub fn offline_skin() -> Option<&'static (Vec<u8>, bool)> {
-    static SKIN: std::sync::OnceLock<Option<(Vec<u8>, bool)>> = std::sync::OnceLock::new();
-    SKIN.get_or_init(|| {
-        let path = std::env::var_os("HORIZON_OFFLINE_SKIN").filter(|p| !p.is_empty())?;
-        let model = std::env::var("HORIZON_OFFLINE_SKIN_MODEL").unwrap_or_default();
-        read_offline_skin(std::path::Path::new(&path), &model)
-            .inspect_err(|e| eprintln!("Horizon: no offline skin ({}): {e}", path.display()))
-            .ok()
-    })
-    .as_ref()
+/// Set by a launcher that runs in the game's process (Android), where an environment
+/// variable read once would keep the first look for as long as the app lives.
+static OFFLINE_LOOK: std::sync::Mutex<Option<OfflineLook>> = std::sync::Mutex::new(None);
+
+/// Sets the look [`offline_skin`] and [`offline_cape`] give. `None` goes back to the
+/// environment the desktop launcher sets (`HORIZON_OFFLINE_SKIN`, `HORIZON_OFFLINE_SKIN_MODEL`,
+/// `HORIZON_OFFLINE_CAPE`; launcher/src/skins.rs), which gives nothing when they are unset.
+pub fn set_offline_look(look: Option<OfflineLook>) {
+    *OFFLINE_LOOK.lock().unwrap_or_else(|e| e.into_inner()) = look;
 }
-fn read_offline_skin(path: &std::path::Path, model: &str) -> Result<(Vec<u8>, bool), String> {
-    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+
+fn offline_look() -> OfflineLook {
+    if let Some(look) = OFFLINE_LOOK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+    {
+        return look;
+    }
+    let path = |name: &str| {
+        std::env::var_os(name)
+            .filter(|p| !p.is_empty())
+            .map(std::path::PathBuf::from)
+    };
+    OfflineLook {
+        skin: path("HORIZON_OFFLINE_SKIN"),
+        slim: std::env::var("HORIZON_OFFLINE_SKIN_MODEL").is_ok_and(|model| model == "slim"),
+        cape: path("HORIZON_OFFLINE_CAPE"),
+    }
+}
+
+/// A decoded file and the state of the file it came from, so a changed or replaced file is
+/// read again and an unchanged one is not (the game asks for the look more than once).
+struct Slot<T> {
+    stamp: (std::path::PathBuf, Option<std::time::SystemTime>, u64),
+    value: Option<T>,
+}
+
+/// The most a look's picture may take: the launcher keeps them under 1 MiB.
+const MAX_OFFLINE_BYTES: u64 = 4 << 20;
+
+fn read_png_file(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .and_then(|file| file.take(MAX_OFFLINE_BYTES + 1).read_to_end(&mut bytes))
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > MAX_OFFLINE_BYTES {
+        return Err("file too large".into());
+    }
+    Ok(bytes)
+}
+
+fn cached<T: Clone>(
+    slot: &std::sync::Mutex<Option<Slot<T>>>,
+    path: Option<&std::path::Path>,
+    what: &str,
+    read: impl FnOnce(&std::path::Path) -> Result<T, String>,
+) -> Option<T> {
+    let mut slot = slot.lock().unwrap_or_else(|e| e.into_inner());
+    let stamp = path.and_then(|path| {
+        let meta = std::fs::metadata(path).ok()?;
+        Some((path.to_path_buf(), meta.modified().ok(), meta.len()))
+    });
+    let (Some(path), Some(stamp)) = (path, stamp) else {
+        *slot = None;
+        return None;
+    };
+    if let Some(known) = slot.as_ref()
+        && known.stamp == stamp
+    {
+        return known.value.clone();
+    }
+    let value = read(path)
+        .inspect_err(|e| eprintln!("Horizon: no offline {what} ({}): {e}", path.display()))
+        .ok();
+    *slot = Some(Slot {
+        stamp,
+        value: value.clone(),
+    });
+    value
+}
+
+/// The cape of the offline look, as `process_cape` lays it out. Read again only when its
+/// file changes.
+pub fn offline_cape() -> Option<std::sync::Arc<[u8]>> {
+    static CAPE: std::sync::Mutex<Option<Slot<std::sync::Arc<[u8]>>>> = std::sync::Mutex::new(None);
+    let look = offline_look();
+    cached(&CAPE, look.cape.as_deref(), "cape", |path| {
+        read_offline_cape(path).map(std::sync::Arc::from)
+    })
+}
+
+/// The skin of the offline look: its 64x64 RGBA as `process_legacy_skin` lays it out, and
+/// whether it is slim. Read again only when its file changes.
+pub fn offline_skin() -> Option<(std::sync::Arc<[u8]>, bool)> {
+    static SKIN: std::sync::Mutex<Option<Slot<std::sync::Arc<[u8]>>>> = std::sync::Mutex::new(None);
+    let look = offline_look();
+    let skin = cached(&SKIN, look.skin.as_deref(), "skin", |path| {
+        read_offline_skin_rgba(path).map(std::sync::Arc::from)
+    })?;
+    Some((skin, look.slim))
+}
+
+fn read_offline_cape(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    let bytes = read_png_file(path)?;
     let (w, h, rgba) = crate::hud::decode_bytes(&bytes).map_err(|e| e.to_string())?;
-    let skin = process_legacy_skin(w, h, &rgba).ok_or("not a 64x64 or 64x32 skin")?;
-    Ok((skin, model == "slim"))
+    process_cape(w, h, &rgba).ok_or_else(|| String::from("not an image"))
+}
+
+fn read_offline_skin_rgba(path: &std::path::Path) -> Result<Vec<u8>, String> {
+    let bytes = read_png_file(path)?;
+    let (w, h, rgba) = crate::hud::decode_bytes(&bytes).map_err(|e| e.to_string())?;
+    process_legacy_skin(w, h, &rgba).ok_or_else(|| String::from("not a 64x64 or 64x32 skin"))
+}
+
+fn read_offline_skin(path: &std::path::Path, model: &str) -> Result<(Vec<u8>, bool), String> {
+    read_offline_skin_rgba(path).map(|skin| (skin, model == "slim"))
 }
 
 /// The signed-in account's own profile properties (`Minecraft.profileFuture`:
@@ -1152,6 +1244,75 @@ mod tests {
         std::fs::write(&file, b"not a png").unwrap();
         assert!(super::read_offline_skin(&file, "slim").is_err());
         assert!(super::read_offline_skin(&dir.join("missing.png"), "").is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The look a launcher in the game's process sets: it replaces the environment, follows a
+    /// changed file and a model change without a restart, and a missing or broken file gives
+    /// the player their default skin. One test, because the look is process-wide.
+    #[test]
+    fn the_offline_look_follows_what_the_launcher_sets() {
+        let png = |w: u32, h: u32, fill: u8| {
+            let mut out = Vec::new();
+            let mut encoder = png::Encoder::new(&mut out, w, h);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&vec![fill; (w * h * 4) as usize])
+                .unwrap();
+            out
+        };
+        let dir = std::env::temp_dir().join(format!("horizon-offline-look-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (skin_file, cape_file) = (dir.join("skin.png"), dir.join("cape.png"));
+        let look = |slim| {
+            Some(super::OfflineLook {
+                skin: Some(skin_file.clone()),
+                slim,
+                cape: Some(cape_file.clone()),
+            })
+        };
+
+        // Nothing set and nothing in the environment: the default skin.
+        super::set_offline_look(None);
+        assert!(super::offline_skin().is_none() && super::offline_cape().is_none());
+
+        std::fs::write(&skin_file, png(64, 64, 200)).unwrap();
+        std::fs::write(&cape_file, png(64, 32, 90)).unwrap();
+        super::set_offline_look(look(false));
+        let (first, slim) = super::offline_skin().unwrap();
+        assert_eq!((first.len(), slim), (64 * 64 * 4, false));
+        assert_eq!(first[0..3], [200, 200, 200]);
+        assert!(super::offline_cape().is_some());
+
+        // Classic to slim changes the model and does not read the file again.
+        let (same, slim) = {
+            super::set_offline_look(look(true));
+            super::offline_skin().unwrap()
+        };
+        assert!(slim && std::sync::Arc::ptr_eq(&first, &same));
+
+        // Importing another skin over it (a different file) is drawn without a restart.
+        std::fs::write(&skin_file, png(64, 32, 40)).unwrap();
+        let (changed, _) = super::offline_skin().unwrap();
+        assert!(!std::sync::Arc::ptr_eq(&first, &changed));
+        assert_eq!(changed[0..3], [40, 40, 40]);
+
+        // A picture that is not a skin, then a missing one: the default skin, and no panic.
+        std::fs::write(&skin_file, png(10, 10, 1)).unwrap();
+        assert!(super::offline_skin().is_none());
+        std::fs::write(&skin_file, b"not a png").unwrap();
+        assert!(super::offline_skin().is_none());
+        std::fs::remove_file(&skin_file).unwrap();
+        assert!(super::offline_skin().is_none());
+        // The cape is independent of the skin.
+        assert!(super::offline_cape().is_some());
+        std::fs::remove_file(&cape_file).unwrap();
+        assert!(super::offline_cape().is_none());
+
+        super::set_offline_look(None);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
