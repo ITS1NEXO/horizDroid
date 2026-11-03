@@ -10,13 +10,13 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" fill="#000"/>
-  <g fill="none" stroke="url(#androidGreen)" stroke-width="17" stroke-linecap="round">
-    <path d="M178 178 L149 137"/>
-    <path d="M334 178 L363 137"/>
+  <g fill="none" stroke="url(#androidGreen)" stroke-width="11" stroke-linecap="round">
+    <path d="M195 169 L176 139"/>
+    <path d="M317 169 L338 139"/>
   </g>
-  <path d="M92 270 A164 164 0 0 1 420 270 Z" fill="url(#androidGreen)"/>
-  <circle cx="186" cy="223" r="16" fill="#000"/>
-  <circle cx="326" cy="223" r="16" fill="#000"/>
-  <path d="M170 306 H224 V478 H170 Z M288 306 H342 V478 H288 Z" fill="#fff"/>
-  <rect x="118" y="386" width="276" height="31" fill="url(#horizonPurple)"/>
+  <path d="M140 239 A109 84 0 0 1 358 239 Z" fill="url(#androidGreen)"/>
+  <circle cx="201" cy="205" r="12" fill="#000"/>
+  <circle cx="311" cy="205" r="12" fill="#000"/>
+  <path d="M184 258 H220 V354 H184 Z M281 258 H317 V354 H281 Z" fill="#fff"/>
+  <rect x="155" y="296" width="189" height="17" fill="url(#horizonPurple)"/>
 </svg>
