@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Create the Android PNG launcher resource from the original HorizDroid WebP logo.
 
-The generated PNG is a build input, not a separately edited or redesigned icon.
+The generated PNG preserves the original artwork and uses the first frame for a
+static launcher icon. It is a build input, not a separately redesigned icon.
 """
 from pathlib import Path
+import shutil
+import subprocess
 
 from PIL import Image
 
@@ -17,18 +20,23 @@ WEBP_RESOURCE = RESOURCE_DIR / "launcher_icon_horizdroid.webp"
 def main():
     if not SOURCE.is_file():
         raise FileNotFoundError(f"Original HorizDroid logo is missing: {SOURCE}")
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("FFmpeg is required to extract the PNG launcher frame")
     RESOURCE_DIR.mkdir(parents=True, exist_ok=True)
-    with Image.open(SOURCE) as original:
-        original.seek(0)
-        original.load()
-        # PNG launcher resources are static; use the first frame if the source is animated.
-        icon = original.convert("RGBA")
-        icon.save(PNG, format="PNG", optimize=True)
-    # Android cannot package two drawable files with the same resource name.
-    WEBP_RESOURCE.unlink(missing_ok=True)
+    subprocess.run([
+        ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(SOURCE),
+        "-map", "0:v:0", "-frames:v", "1", "-pix_fmt", "rgba", str(PNG),
+    ], check=True, timeout=60)
     with Image.open(PNG) as generated:
         generated.verify()
-    print(f"Prepared PNG launcher resource: {PNG} ({icon.width}x{icon.height})")
+    with Image.open(PNG) as generated:
+        size = generated.size
+        if generated.format != "PNG" or size[0] < 1 or size[1] < 1:
+            raise ValueError("Generated launcher resource is not a valid PNG")
+    # Android cannot package two drawable files with the same resource name.
+    WEBP_RESOURCE.unlink(missing_ok=True)
+    print(f"Prepared PNG launcher resource: {PNG} ({size[0]}x{size[1]})")
 
 
 if __name__ == "__main__":
