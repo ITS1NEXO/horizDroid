@@ -11,6 +11,10 @@ on:
         description: Type-check all four Android ABIs (slower)
         type: boolean
         default: false
+      render_tests:
+        description: Run the render crate's skin tests (slower; builds the engine on the host)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -31,10 +35,27 @@ jobs:
       - run: python3 tools/test_android_diagnostics.py
       - run: python3 tools/test_android_performance.py
       - run: python3 tools/test_android_content.py
+      - name: Dressing Room store tests (std only)
+        run: |
+          RUSTUP_TOOLCHAIN=stable rustc --edition 2024 --test crates/horizon-client/src/android/dressing_store.rs -o "$RUNNER_TEMP/dressing_store_tests"
+          "$RUNNER_TEMP/dressing_store_tests"
       - name: Check workflow export matches the active workflow
         run: |
           cmp .github/workflows/android-source.yml packaging/android/source-checks.yml
           cmp .github/workflows/android-dev.yml packaging/android/dev-builds.yml
+  render:
+    if: github.event_name == 'workflow_dispatch' && inputs.render_tests
+    needs: source
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HORIZON_TELEMETRY_URL: "off"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Skin tests of the render crate
+        run: cargo test -p horizon-client-render --lib skins
   native:
     if: github.event_name == 'workflow_dispatch' && inputs.native_checks
     needs: source

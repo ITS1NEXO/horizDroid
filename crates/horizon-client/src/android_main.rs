@@ -39,6 +39,10 @@ mod document_provider;
 mod document_store;
 #[path = "android/documents.rs"]
 mod documents;
+// The Dressing Room's saved skins and capes: std only, so its tests run on any host.
+#[allow(dead_code)]
+#[path = "android/dressing_store.rs"]
+mod dressing_store;
 #[path = "android/exit_reports.rs"]
 mod exit_reports;
 #[path = "android/gallery.rs"]

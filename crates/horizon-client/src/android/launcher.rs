@@ -27,6 +27,21 @@ use winit::{
     window::{Window, WindowId},
 };
 
+/// What the game draws on an offline player: the Dressing Room's worn skin and cape. A
+/// signed-in account plays with its own skin.
+fn offline_look(signed_in: bool) -> Option<horizon_client::skins::OfflineLook> {
+    if signed_in {
+        return None;
+    }
+    let worn =
+        crate::dressing_store::Store::new(crate::backend::data_dir().join("dressing")).worn();
+    (worn.skin.is_some() || worn.cape.is_some()).then_some(horizon_client::skins::OfflineLook {
+        skin: worn.skin,
+        slim: worn.slim,
+        cape: worn.cape,
+    })
+}
+
 pub(super) struct Launcher {
     home: PathBuf,
     controller_edges: horizon_client::gamepad::Edges,
@@ -353,6 +368,9 @@ impl Launcher {
                 open_gl: self.catalog.config.renderer == crate::catalog::RendererMode::OpenGl,
                 gpu_batching: self.catalog.config.renderer == crate::catalog::RendererMode::Vulkan,
             };
+            // This process runs the game too: hand over the skin and cape directly, since an
+            // environment variable is read once and would keep the first look.
+            horizon_client::skins::set_offline_look(offline_look(request.session_file.is_some()));
             crate::document_store::set_game_active(true);
             let game = match crate::game_launch::start(request) {
                 Ok(game) => game,
