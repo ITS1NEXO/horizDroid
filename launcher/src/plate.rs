@@ -10,15 +10,14 @@ pub fn alpha(c: u32, a: f32) -> Rgba {
     rgba(c << 8 | (a * 255.).round() as u32)
 }
 
-/// A plate: `card` at its opacity, each corner cut in two [`night::PIXEL_CORNER`] steps, with its
-/// 1 px `stroke` along the edge. Its content goes in as children, as on any div.
+/// A softly rounded menu and notice surface, with a subtle 1 px stroke. Its content goes in as
+/// children, as on any div.
 pub fn plate(n: &Night) -> Div {
-    cut(
-        night::PIXEL_CORNER,
-        2,
-        Some(alpha(n.card, n.card_alpha)),
-        Some((alpha(n.stroke, n.stroke_alpha), 1.)),
-    )
+    div()
+        .rounded(px(10.))
+        .bg(alpha(n.card, n.card_alpha))
+        .border_1()
+        .border_color(alpha(n.stroke, n.stroke_alpha))
 }
 
 /// A box of any size whose corners are cut in `steps` steps of `step` px: `fill` inside, and a
