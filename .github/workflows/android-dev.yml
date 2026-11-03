@@ -64,7 +64,12 @@ jobs:
           mkdir -p .local/android
           printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > .local/android/release.keystore
           chmod 600 .local/android/release.keystore
-          echo "ANDROID_SIGNING_KEYSTORE=$GITHUB_WORKSPACE/.local/android/release.keystore" >> "$GITHUB_ENV"
+          {
+            echo "ANDROID_SIGNING_KEYSTORE=$GITHUB_WORKSPACE/.local/android/release.keystore"
+            printf 'ANDROID_RELEASE_STORE_PASSWORD=%s\n' "$ANDROID_RELEASE_STORE_PASSWORD"
+            printf 'ANDROID_RELEASE_KEY_ALIAS=%s\n' "$ANDROID_RELEASE_KEY_ALIAS"
+            printf 'ANDROID_RELEASE_KEY_PASSWORD=%s\n' "$ANDROID_RELEASE_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
@@ -146,4 +151,4 @@ jobs:
           retention-days: 14
       - name: Remove signing key
         if: always()
-        run: rm -f .local/android/debug.keystore
+        run: rm -f .local/android/release.keystore .local/android/debug.keystore
