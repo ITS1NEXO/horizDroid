@@ -104,8 +104,11 @@ jobs:
           key: android-dev-${{ runner.os }}-${{ matrix.abi }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'packaging/android/build.gradle') }}-${{ github.sha }}
           restore-keys: |
             android-dev-${{ runner.os }}-${{ matrix.abi }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', 'packaging/android/build.gradle') }}-
-      - name: Install PNG conversion dependency
-        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
+      - name: Install PNG conversion tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ffmpeg
+          python3 -m pip install --disable-pip-version-check Pillow==11.3.0
       - name: Generate PNG launcher resource
         run: python3 tools/prepare_android_icon.py
       - name: Run source checks
