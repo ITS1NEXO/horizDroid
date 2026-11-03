@@ -3,7 +3,7 @@
   <img src="horizdroid-logo.svg" alt="HorizDroid logo" width="220">
 </div>
 
-**HorizDroid** is ZYVIX's Android-focused fork of [Horizon Android](https://github.com/Vasysik/horizon-android).
+**HorizDroid** is an Android-focused fork of [Horizon Android](https://github.com/Vasysik/horizon-android).
 
 The goal is to extend Horizon Android with native Rust mod support while keeping its Android experience and graphics compatibility intact.
 
