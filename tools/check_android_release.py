@@ -18,7 +18,7 @@ import zlib
 ROOT = Path(__file__).resolve().parents[1]
 APP_LABEL = 'HorizDroid'
 APP_IDS = ['dev.horizon.android', 'dev.horizdroid.android']
-ICON_SOURCE = ROOT / 'packaging/android/res/drawable-nodpi/launcher_icon.png'
+ICON_SOURCE = ROOT / 'packaging/android/res/drawable-nodpi/launcher_icon_horizdroid.png'
 ASSETS ={'assets/engine-data.zip', 'assets/bedrock-controls.zip'}
 # AndroidX build-time optimization profiles, not player/account profiles.
 BUILD_ASSETS = {'assets/dexopt/baseline.prof', 'assets/dexopt/baseline.profm'}
@@ -185,7 +185,7 @@ def audit(path, aapt2, public=False, app_id='dev.horizon.android', app_label=APP
     if not re.search(rf"^application-label:'{re.escape(app_label)}'$", badging, re.MULTILINE):
         raise ValueError('Unexpected Android application label')
     if not check_icon(path, badging, icon_source):
-        raise ValueError('Launcher icon does not match packaging/android/res/drawable-nodpi/launcher_icon.png')
+        raise ValueError('Launcher icon does not match the HorizDroid PNG source')
     report['package'], report['label'], report['icon_matches_source'] = app_id, app_label, True
     report['debuggable'] = 'application-debuggable' in badging
     if report['debuggable']:
