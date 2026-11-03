@@ -1,5 +1,7 @@
-<img width="1254" height="1254" alt="file_0000000093e081f4b2ef04fdaaf1d151" src="https://github.com/user-attachments/assets/c092e350-edc8-4ae0-8a56-b49088a1b529" />
 <h1 align="center">HorizDroid</h1>
+<div align="center">
+  <img width="220" alt="file_0000000093e081f4b2ef04fdaaf1d151" src="https://github.com/user-attachments/assets/c092e350-edc8-4ae0-8a56-b49088a1b529" />
+</div>
 <div align="center">
   
 
