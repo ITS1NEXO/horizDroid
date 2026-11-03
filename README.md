@@ -1,4 +1,7 @@
-# HorizDroid
+<h1 align="center">HorizDroid</h1>
+<div align="center">
+  <img src="horizdroid-logo.png" alt="HorizDroid logo" width="220">
+</div>
 
 **HorizDroid** is ZYVIX's Android-focused fork of [Horizon Android](https://github.com/Vasysik/horizon-android).
 
