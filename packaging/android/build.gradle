@@ -46,3 +46,28 @@ android {
     packaging { jniLibs { useLegacyPackaging = true; keepDebugSymbols += '**/*.so' } }
 }
 layout.buildDirectory = file('../../.local/android/gradle-build')
+
+ 
+// Fail early with a clear message if the manifest and generated launcher asset drift.
+def verifyLauncherIconResource = tasks.register('verifyLauncherIconResource') {
+    doLast {
+        def manifestText = file('AndroidManifest.xml').getText('UTF-8')
+        def match = manifestText =~ /android:icon="@drawable\/([A-Za-z0-9_]+)"/
+        if (!match.find()) {
+            throw new GradleException('AndroidManifest.xml must declare an @drawable launcher icon')
+        }
+        def resourceName = match.group(1)
+        def iconFiles = fileTree('res') {
+            include "**/${resourceName}.png"
+            include "**/${resourceName}.webp"
+            include "**/${resourceName}.xml"
+        }.files
+        if (iconFiles.empty) {
+            throw new GradleException("Launcher icon @drawable/${resourceName} is missing from packaging/android/res")
+        }
+    }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn verifyLauncherIconResource
+}
