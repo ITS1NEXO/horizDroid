@@ -150,24 +150,30 @@ class ReleaseAuditTests(unittest.TestCase):
 
     def test_launcher_generator_corrects_only_the_upper_h_strokes(self):
         import importlib.util
-        from PIL import Image
         root = Path(__file__).resolve().parents[1]
         spec = importlib.util.spec_from_file_location('prepare_android_icon', root / 'tools/prepare_android_icon.py')
         generator = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(generator)
-        image = Image.new('RGBA', (256, 256), (0, 0, 0, 255))
-        pixels = image.load()
-        # Synthetic samples in each logo region: green upper bars, green Android head,
-        # and grey lower legs.
-        pixels[103, 142] = (61, 233, 109, 255)
-        pixels[153, 142] = (61, 233, 109, 255)
-        pixels[128, 95] = (61, 233, 109, 255)
-        pixels[103, 174] = (128, 160, 140, 255)
-        corrected = generator.correct_upper_h_bars(image)
-        self.assertEqual(corrected.getpixel((103, 142)), (255, 255, 255, 255))
-        self.assertEqual(corrected.getpixel((153, 142)), (255, 255, 255, 255))
-        self.assertEqual(corrected.getpixel((128, 95)), (61, 233, 109, 255))
-        self.assertEqual(corrected.getpixel((103, 174)), (128, 160, 140, 255))
+
+        class PixelImage:
+            size = (256, 256)
+            def __init__(self):
+                self.pixels = {
+                    (103, 142): (61, 233, 109, 255),
+                    (153, 142): (61, 233, 109, 255),
+                    (128, 95): (61, 233, 109, 255),
+                    (103, 174): (128, 160, 140, 255),
+                }
+            def convert(self, mode):
+                return self
+            def load(self):
+                return self.pixels
+
+        corrected = generator.correct_upper_h_bars(PixelImage())
+        self.assertEqual(corrected.load()[(103, 142)], (255, 255, 255, 255))
+        self.assertEqual(corrected.load()[(153, 142)], (255, 255, 255, 255))
+        self.assertEqual(corrected.load()[(128, 95)], (61, 233, 109, 255))
+        self.assertEqual(corrected.load()[(103, 174)], (128, 160, 140, 255))
 
     def test_manifest_uses_the_launcher_resource_generated_by_ci(self):
         root = Path(__file__).resolve().parents[1]
