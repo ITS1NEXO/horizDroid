@@ -48,7 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          persist-credentials: false
+          persist-credentials: true
       - name: Load signing key
         env:
           ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
@@ -111,6 +111,16 @@ jobs:
           python3 -m pip install --disable-pip-version-check Pillow==11.3.0
       - name: Generate PNG launcher resource
         run: python3 tools/prepare_android_icon.py
+      - name: Commit corrected launcher artwork when it changes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/android/res/drawable-nodpi/launcher_icon.png
+          if ! git diff --cached --quiet; then
+            git commit -m "Correct HorizDroid launcher logo colours"
+            git push origin HEAD:android
+          fi
       - name: Run source checks
         run: |
           python3 tools/check_public_tree.py
