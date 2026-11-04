@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Create the Android PNG launcher resource from the original HorizDroid WebP logo.
+"""Generate the Android launcher resource from the approved HorizDroid logo.
 
-The generated PNG preserves the original artwork and uses the first frame for a
-static launcher icon. It is a build input, not a separately redesigned icon.
+AndroidManifest references @drawable/launcher_icon. Generate that exact resource
+name so the approved black-background HorizDroid H artwork replaces the stale
+legacy launcher icon instead of creating an unused drawable.
 """
 from pathlib import Path
 import shutil
@@ -13,8 +14,9 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "horizdroid-logo.webp"
 RESOURCE_DIR = ROOT / "packaging/android/res/drawable-nodpi"
-PNG = RESOURCE_DIR / "launcher_icon_horizdroid.png"
-WEBP_RESOURCE = RESOURCE_DIR / "launcher_icon_horizdroid.webp"
+PNG = RESOURCE_DIR / "launcher_icon.png"
+UNUSED_WEBP_RESOURCE = RESOURCE_DIR / "launcher_icon_horizdroid.webp"
+UNUSED_PNG_RESOURCE = RESOURCE_DIR / "launcher_icon_horizdroid.png"
 
 
 def main():
@@ -34,9 +36,10 @@ def main():
         size = generated.size
         if generated.format != "PNG" or size[0] < 1 or size[1] < 1:
             raise ValueError("Generated launcher resource is not a valid PNG")
-    # Android cannot package two drawable files with the same resource name.
-    WEBP_RESOURCE.unlink(missing_ok=True)
-    print(f"Prepared PNG launcher resource: {PNG} ({size[0]}x{size[1]})")
+    # Remove the obsolete alternate resource names so there is one authoritative icon.
+    UNUSED_WEBP_RESOURCE.unlink(missing_ok=True)
+    UNUSED_PNG_RESOURCE.unlink(missing_ok=True)
+    print(f"Prepared Android launcher resource: {PNG} ({size[0]}x{size[1]})")
 
 
 if __name__ == "__main__":
