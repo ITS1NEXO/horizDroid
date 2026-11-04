@@ -155,3 +155,5 @@ class ReleaseAuditTests(unittest.TestCase):
         self.assertIn('android:icon="@drawable/launcher_icon"', manifest)
         self.assertNotIn('android:icon="@drawable/launcher_icon_horizdroid"', manifest)
         self.assertIn('launcher_icon.png', generator)
+        self.assertEqual(audit.ICON_SOURCE.relative_to(root).as_posix(),
+                         'packaging/android/res/drawable-nodpi/launcher_icon.png')
