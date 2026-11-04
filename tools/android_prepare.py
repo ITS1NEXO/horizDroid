@@ -59,11 +59,16 @@ def download_game(version, directory):
     entry = next((v for v in fetch_json(MANIFEST)['versions'] if v['id'] == version), None)
     if entry is None:
         raise ValueError(f"Mojang does not list Minecraft {version}")
-    # Mojang metadata may be republished: lab.download checks the catalog SHA-1,
-    # and client/server jar hashes are checked against the engine pins below.
+    # Use the canonical version JSON pinned by research-lock.json, not whichever
+    # republished copy the moving version catalog happens to list today. Horizon's
+    # preparer accepts only this SHA-1 (or an explicitly reviewed accepted variant).
+    # Mojang may republish the catalog entry with a different asset index; that must
+    # not silently change the inputs this Android build prepares.
     versions = directory / 'versions' / version
     manifest_path = versions / f'{version}.json'
-    lab.download(entry['url'], manifest_path, entry['sha1'])
+    manifest_sha1 = pins['manifest_sha1']
+    manifest_url = f"https://piston-meta.mojang.com/v1/packages/{manifest_sha1}/{version}.json"
+    lab.download(manifest_url, manifest_path, manifest_sha1)
     manifest = json.loads(manifest_path.read_text())
     files = []
     for side in ['client', 'server']:
