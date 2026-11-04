@@ -9,7 +9,6 @@ from pathlib import Path
 import shutil
 import subprocess
 
-from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "horizdroid-logo.webp"
@@ -41,6 +40,7 @@ def correct_upper_h_bars(image):
 
 
 def main():
+    from PIL import Image
     if not SOURCE.is_file():
         raise FileNotFoundError(f"Original HorizDroid logo is missing: {SOURCE}")
     ffmpeg = shutil.which("ffmpeg")
