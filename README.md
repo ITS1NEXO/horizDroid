@@ -1,10 +1,9 @@
 <h1 align="center">HorizDroid</h1>
 <div align="center">
-  <img width="220" alt="file_0000000093e081f4b2ef04fdaaf1d151" src="https://github.com/user-attachments/assets/c092e350-edc8-4ae0-8a56-b49088a1b529" />
+  <img width="220" alt="HorizDroid mascot logo" src="packaging/android/res/drawable-nodpi/launcher_icon.png" />
 </div>
 <div align="center">
   
-
 **HorizDroid** is an Android-focused fork of [Horizon Android](https://github.com/Vasysik/horizon-android).
 
 The goal is to extend Horizon Android with native Rust mod support while keeping its Android experience and graphics compatibility intact.
