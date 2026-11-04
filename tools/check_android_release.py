@@ -18,7 +18,7 @@ import zlib
 ROOT = Path(__file__).resolve().parents[1]
 APP_LABEL = 'HorizDroid'
 APP_IDS = ['dev.horizon.android', 'dev.horizdroid.android']
-ICON_SOURCE = ROOT / 'packaging/android/res/drawable-nodpi/launcher_icon_horizdroid.png'
+ICON_SOURCE = ROOT / 'packaging/android/res/drawable-nodpi/launcher_icon.png'
 ASSETS ={'assets/engine-data.zip', 'assets/bedrock-controls.zip'}
 # AndroidX build-time optimization profiles, not player/account profiles.
 BUILD_ASSETS = {'assets/dexopt/baseline.prof', 'assets/dexopt/baseline.profm'}
