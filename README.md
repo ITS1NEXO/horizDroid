@@ -1,43 +1,43 @@
-<h1 align="center">HorizDroid</h1>
+# HorizDroid
+
 <div align="center">
   <img width="220" alt="HorizDroid mascot logo" src="packaging/android/res/drawable-nodpi/launcher_icon.png" />
 </div>
 <div align="center">
-  
+
 **HorizDroid** is an Android-focused fork of [Horizon Android](https://github.com/Vasysik/horizon-android).
 
-The goal is to extend Horizon Android with native Rust mod support while keeping its Android experience and graphics compatibility intact.
+The project aims to make Horizon a better Android gaming experience through compatibility, performance work, touch and launcher improvements, resource and content support, and expanded mod support.
 
 > HorizDroid is an independent, unofficial community fork. It is not affiliated with or endorsed by the Horizon developers, Mojang, or Microsoft.
 
 ## Project goals
 
-- **Native mod support:** investigate and implement Android-compatible loading for compiled `.hnmod` native mods.
-- **Keep content mods:** preserve existing `.hmod` support.
-- **Graphics compatibility:** preserve Vulkan and OpenGL ES paths, including OpenGL ES support for older GPUs and devices.
-- **Android-first:** retain touch controls, Android lifecycle handling, and support for the devices Horizon Android targets.
+- **Android experience:** improve launcher usability, touch controls, lifecycle handling, storage workflows, and device compatibility.
+- **Performance and graphics:** investigate rendering, memory, startup, and frame-time improvements while preserving Vulkan and OpenGL ES paths where supported.
+- **Mod support:** preserve existing sandboxed/content `.hmod` support and develop an Android-compatible path for native `.hnmod` mods.
+- **Resource support:** improve importing, managing, and using supported resource packs, shaders, skins, and other game assets.
 - **ARM64 builds:** make reproducible Android builds through GitHub Actions where practical.
 
 ## Status
 
-HorizDroid is at the fork and development-planning stage.
+HorizDroid is an active development fork. Features are added and validated incrementally; an item in the goals list is not a claim that it is already implemented.
 
-**Native `.hnmod` loading is a development goal, not an implemented or verified feature yet.** A working implementation will require changes to the Android client/runtime and a compatible native-mod build and loading pipeline. File extensions alone are not interchangeable: `.hmod` content packages and `.hnmod` native mods have different formats and execution models.
+**Native `.hnmod` loading is not yet implemented or verified on Android.** Horizon's `.hnmod` files are native source/mixin bundles that the desktop launcher uses to build a customised game. Android needs a compatible build-and-load workflow; copying a bundle into storage is not enough to execute it.
 
-Vulkan and OpenGL ES compatibility must be checked against the actual renderer implementation and tested on real Android devices. No performance gains or device compatibility are claimed until measured.
+Existing `.hmod` content packages use a different format and execution path. Their support must remain intact as native-mod support is developed.
 
-## Planned development
+Vulkan and OpenGL ES compatibility and any performance gains must be checked against the actual renderer and tested on real Android devices. No performance gains or device compatibility are claimed until measured.
 
-1. Map the Android client's renderer, mod discovery, and loading architecture.
-2. Identify the upstream native-mod interface and its Android build requirements.
-3. Design a safe Android-compatible `.hnmod` loading pipeline.
-4. Keep existing `.hmod` behaviour working.
-5. Build debug APKs with GitHub Actions and test on multiple GPU/backend combinations.
-6. Develop and test native mods such as **TITANIUM** separately.
+## Development notes
+
+- [Android native-mod investigation](docs/android-native-mods.md)
+- [Horizon Android mod documentation](https://github.com/Vasysik/horizon-android/blob/android/docs/mods.md)
+- [Horizon native-mod architecture](https://github.com/Vasysik/horizon-android/blob/android/docs/native-mods.md)
 
 ## Building and testing
 
-Build instructions will be documented after the fork's Android toolchain and CI workflow have been reviewed and validated. Do not treat an untested workflow or artifact as a working release.
+See [Android build and testing notes](docs/android.md). Do not treat an untested workflow or artifact as a working release.
 
 When reporting bugs, include the device model, Android version, GPU, selected graphics backend, build/commit, and reproducible steps. Do not share account credentials, signing keys, or private tokens.
 
@@ -46,7 +46,6 @@ When reporting bugs, include the device model, Android version, GPU, selected gr
 HorizDroid is based on [Vasysik's Horizon Android](https://github.com/Vasysik/horizon-android) and retains the upstream repository history. Original copyright notices, licenses, and third-party notices must remain with their respective files and components. Check the applicable licenses before redistributing modified builds or third-party assets.
 
 - [Upstream Horizon Android](https://github.com/Vasysik/horizon-android)
-- [Horizon Android mod documentation](https://github.com/Vasysik/horizon-android/blob/android/docs/mods.md)
 - [TITANIUM performance-mod project](https://github.com/ITS1NEXO/TITANIUM-Horizon-Rust)
 
 ---
