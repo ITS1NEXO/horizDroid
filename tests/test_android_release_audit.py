@@ -146,3 +146,12 @@ class ReleaseAuditTests(unittest.TestCase):
     def test_nested_traversal_is_rejected(self):
         with self.assertRaises(ValueError):
             self.inspect({'../account.json': b'{}'})
+
+
+    def test_manifest_uses_the_launcher_resource_generated_by_ci(self):
+        root = Path(__file__).resolve().parents[1]
+        manifest = (root / 'packaging/android/AndroidManifest.xml').read_text()
+        generator = (root / 'tools/prepare_android_icon.py').read_text()
+        self.assertIn('android:icon="@drawable/launcher_icon"', manifest)
+        self.assertNotIn('android:icon="@drawable/launcher_icon_horizdroid"', manifest)
+        self.assertIn('launcher_icon.png', generator)
