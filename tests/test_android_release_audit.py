@@ -155,15 +155,19 @@ class ReleaseAuditTests(unittest.TestCase):
         generator = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(generator)
 
+        class PixelMap(dict):
+            def __missing__(self, key):
+                return (0, 0, 0, 255)
+
         class PixelImage:
             size = (256, 256)
             def __init__(self):
-                self.pixels = {
+                self.pixels = PixelMap({
                     (103, 142): (61, 233, 109, 255),
                     (153, 142): (61, 233, 109, 255),
                     (128, 95): (61, 233, 109, 255),
                     (103, 174): (128, 160, 140, 255),
-                }
+                })
             def convert(self, mode):
                 return self
             def load(self):
