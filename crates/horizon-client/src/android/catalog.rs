@@ -442,7 +442,7 @@ impl Catalog {
         } else if self.page == Page::Mods {
             let native = items.iter().filter(|p| source_only_mod(p)).count();
             format!(
-                "{} .hmod / {} source-only .hnmod (not supported yet)",
+                "{} .hmod / {} native .hnmod (requires a custom Android APK build)",
                 items.len() - native,
                 native
             )
@@ -511,7 +511,7 @@ impl Catalog {
             return;
         };
         if source_only_mod(&project) {
-            self.status = "This .hnmod needs a separately compiled client. Android support is planned; sandboxed .hmod mods can be installed now.".into();
+            self.status = "Native .hnmod detected. It is source code, not an installable library: Android must build a separate APK from pinned Horizon source. This build pipeline is not available in this app build yet. Your existing .hmod install flow is unchanged.".into();
             return;
         }
         if self.busy() || self.download_label(&project).is_some() {
